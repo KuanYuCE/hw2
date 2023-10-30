@@ -18,12 +18,19 @@ int fileno(FILE *);
 #define LIST       strcat(buffer, yytext)
 #define LIST_FLUSH do{ if(opt_list) printf("%s", buffer); *buffer = 0; }while(0)
 #define LOG(TYPE) do{ LIST; if(opt_token) fprintf(stderr, "token(type:%-10s) on line %4d, %3d : %s\n", #TYPE, line_no, col_no - yyleng, yytext); } while(0)
+#define CMD_START
+#define CMD_END
+#define CMD_SCMT
 
 int opt_list = 1, opt_token = 0;
 int line_no = 1, col_no = 1;
 char buffer[MAX_LINE_LENG];
 
+int cmnt_count = 0;
 %}
+
+%x CMNT
+%s PRAGMA
 
 %option nounput
 %option noinput
@@ -99,14 +106,48 @@ Z [zZ]
 "!="                        {LOG(KEYWORD); return(NEQOP);      }
 
   /* define identifier here */
+[a-zA-Z]([_0-9a-zA-Z]*[0-9a-zA-Z])* { LOG(IDENTIFIER); return(IDENTIFIER); }
 
   /* define INTEGERNUM, REALNUMBER, SCIENTIFIC here */
 
+[0-9]+ { LOG(NUMBER); return(INTEGERNUM);  }
+[0-9]+\.[0-9]+ { LOG(NUMBER); return(REALNUMBER); }
+
+([0-9]+|[0-9]+\.[0-9]+)[Ee][+-]?[0-9]+ {
+    LOG(NUMBER);
+    return(SCIENTIFIC);
+}
+
   /* define single/multiple line comment here */
 
-  /* define string constant (LITERALSTR) here */
+"//".* { LIST; CMD_SCMT; }
 
+"/*" { LIST; CMD_START; BEGIN CMNT; cmnt_count += 1; }
+<CMNT>. { LIST; }
+<CMNT>"/*" { LIST; cmnt_count += 1; }
+<CMNT>\n { LIST; LIST_FLUSH; line_no++, col_no = 1; }
+<CMNT>"*/" {
+  if (cmnt_count > 1) {
+     LIST; cmnt_count -= 1;
+  } else {
+     LIST; CMD_END; BEGIN INITIAL; cmnt_count=0;
+  }
+}
+
+  /* define string constant (LITERALSTR) here */
+\"[^"]*\" {
+    if ('\\' == yytext[yyleng-2]) {
+        yyless(yyleng-1);
+        yymore();
+    } else {
+        LOG(STRING);
+        return (LITERALSTR);
+    };
+}
   /* define pragma here */
+#[ \t]*pragma[ \t]+list[ \t]+on { LIST; opt_list=1; }
+#[ \t]*pragma[ \t]+list[ \t]+off { LIST; opt_list=0; }
+
 
 [ \t\f\r]    LIST;
 

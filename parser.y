@@ -28,6 +28,8 @@ static void yyerror(const char *msg);
   double dval;
 }
 
+%left ADDOP SUBOP
+%left MULOP DIVOP
 
 %%
 
@@ -41,52 +43,56 @@ DOT
 ;
 
 identifier_list: IDENTIFIER
-	       | identifier_list COMMA IDENTIFIER
-            ;
-
-declarations: declarations VAR identifier_list COLON type SEMICOLON
-            |
-            ;
-
-type: standard_type
-    | ARRAY LBRACE INTEGERNUM DOTDOT INTEGERNUM RBRACE OF type ;
-
-standard_type: INTEGER
-	         | REAL
-             | STRING
-             ;
-
-subprogram_declarations:
-		       | subprogram_declarations subprogram_declaration ;
-
-subprogram_declaration:
-                subprogram_head
-                declarations
-                subprogram_declarations
-                compound_statement
-                ;
-
-subprogram_head: FUNCTION IDENTIFIER arguments COLON standard_type SEMICOLON
-               | PROCEDURE IDENTIFIER arguments SEMICOLON
-               ;
-
-arguments: LPAREN parameter_list RPAREN
-        |
-        ;
-
-parameter_list: optional_var identifier_list COLON type
-	      | optional_var identifier_list COLON type SEMICOLON parameter_list
-          ;
-
-optional_var: VAR
-         | ;
-
-compound_statement: PBEGIN 
-optional_statements END
+| identifier_list COMMA IDENTIFIER
 ;
 
+declarations: declarations VAR identifier_list COLON type SEMICOLON
+|
+;
+
+type: standard_type
+| ARRAY LBRACE INTEGERNUM DOTDOT INTEGERNUM RBRACE OF type ;
+
+standard_type: INTEGER
+| REAL
+| STRING
+;
+
+subprogram_declarations: subprogram_declarations 
+subprogram_declaration 
+SEMICOLON
+| 
+;               
+
+subprogram_declaration: subprogram_head
+declarations
+subprogram_declarations
+compound_statement
+;
+
+subprogram_head: FUNCTION IDENTIFIER arguments COLON standard_type SEMICOLON
+| PROCEDURE IDENTIFIER arguments SEMICOLON
+;
+
+arguments: LPAREN parameter_list RPAREN
+|
+;
+
+
+parameter_list: optional_var identifier_list COLON type
+| optional_var identifier_list COLON type SEMICOLON parameter_list
+;
+
+optional_var: VAR
+| 
+;
+
+compound_statement: PBEGIN optional_statements END
+;
+
+/* 拿掉lambda才能避免reduce/reduce conflict */
 optional_statements: statement_list
-                   | ;
+;
 
 statement_list: statement
 | statement_list SEMICOLON statement
@@ -128,16 +134,20 @@ simple_expression: term
 | simple_expression addop term
 ;
 
-
 term: factor
-    | term mulop factor
-    ;
+| term mulop factor
+;
+
+/* 透過SUBOP num 來表示負數 */
+num: INTEGERNUM
+| REALNUMBER
+| LITERALSTR
+| SUBOP num
+;
 
 factor: IDENTIFIER tail
 | IDENTIFIER LPAREN expression_list RPAREN
-| INTEGERNUM
-| REALNUMBER
-| LITERALSTR
+| num
 | LPAREN expression RPAREN
 | NOT factor
 ;
